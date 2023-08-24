@@ -1,0 +1,29 @@
+# This is a basic template and might need adjustments based on your specific setup
+source /etc/network/interfaces.d/*
+
+# The loopback network interface
+auto lo
+iface lo inet loopback
+
+auto veth0
+iface veth0 inet manual
+    pre-up ip link add veth0 type dummy
+ 
+auto br0
+iface br0 inet static
+  address 192.168.8.1
+  netmask 255.255.255.0
+  bridge_ports veth0
+  bridge_stp off
+
+ 
+### IF YOU NEED BRIDGE ON IFACE WITHOUT NAT ###
+# ALSO DISABLE DNSMASQ #
+#allow-hotplug enp3s0
+#iface enp3s0 inet manual
+ 
+#auto br0
+#iface br0 inet dhcp
+#  bridge_ports enp3s0
+#  bridge_stp off
+###

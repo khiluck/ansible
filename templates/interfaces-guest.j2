@@ -6,13 +6,13 @@ auto lo
 iface lo inet loopback
 
 # The primary network interface
+# WAN
 auto ens3
-iface ens3 inet manual
+iface ens3 inet dhcp
 
-# Bridge setup
-auto br0
-iface br0 inet dhcp
-    bridge_ports ens3
-    bridge_stp off
-    bridge_fd 0
-    bridge_maxwait 0
+# The secondary network interface
+# LAN
+auto ens5
+iface ens5 inet static
+  address 192.168.100.1
+  netmask 255.255.255.0

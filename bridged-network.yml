@@ -20,7 +20,7 @@
 
     - name: Deploy bridged networking configuration
       template:
-        src: templates/interfaces.j2
+        src: templates/interfaces-host.j2
         dest: /etc/network/interfaces
       notify:
         - Restart networking
