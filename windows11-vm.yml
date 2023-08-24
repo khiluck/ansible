@@ -1,0 +1,30 @@
+---
+- name: Create Windows 11 Pro VM
+  hosts: all
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Gather facts
+      setup:
+
+    - name: Check if OS is Debian
+      fail:
+        msg: "This playbook can only be run on Debian. Exiting."
+      when: ansible_distribution != 'Debian'
+
+    - name: Ensure VM is present
+      virt:
+        name: windows11_vm
+        memory: 4096
+        vcpus: 2
+        virt_type: kvm
+        os_variant: win10
+        state: running
+        disk:
+          size: 60G
+          format: qcow2
+          path: /vmfs/windows11_vm.qcow2
+        network:
+          - name: private_network
+        graphics: spice
+        cdrom: /vmfs/ISO/windows11.iso

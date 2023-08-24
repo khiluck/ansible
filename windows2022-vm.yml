@@ -1,0 +1,30 @@
+---
+- name: Create Windows Server 2022 VM
+  hosts: all
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Gather facts
+      setup:
+
+    - name: Check if OS is Debian
+      fail:
+        msg: "This playbook can only be run on Debian. Exiting."
+      when: ansible_distribution != 'Debian'
+
+    - name: Ensure VM is present
+      virt:
+        name: winserver2022_vm
+        memory: 8192
+        vcpus: 4
+        virt_type: kvm
+        os_variant: win2k19
+        state: running
+        disk:
+          size: 80G
+          format: qcow2
+          path: /vmfs/winserver2022_vm.qcow2
+        network:
+          - name: private_network
+        graphics: spice
+        cdrom: /vmfs/ISO/winserver2022_iso.iso
