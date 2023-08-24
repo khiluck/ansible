@@ -5,10 +5,12 @@ source /etc/network/interfaces.d/*
 auto lo
 iface lo inet loopback
 
+# Add virtual network plug
 auto veth0
 iface veth0 inet manual
     pre-up ip link add veth0 type dummy
  
+# Add bridge to that network plug
 auto br1
 iface br1 inet static
   address 192.168.8.1
@@ -16,46 +18,10 @@ iface br1 inet static
   bridge_ports veth0
   bridge_stp off
 
-
 # The primary network interface
 allow-hotplug enp3s0
-iface enp3s0 inet manual
-        bond-master bond0
-
-# The secondary network interface
-allow-hotplug enp5s0
-iface enp5s0 inet manual
-        bond-master bond0
-
-# Bond Interface
-auto bond0
-iface bond0 inet manual
-    bond-slaves enp3s0 enp5s0
-    bond-mode active-backup
-    bond-miimon 100
-    bond-downdelay 200
-    bond-updelay 200
-
-# Bridge interface
-auto br0
-iface br0 inet static
+iface enp3s0 inet static
   address 192.168.10.225
   netmask 255.255.255.0
   gateway 192.168.10.1
   dns-nameservers 8.8.8.8 8.8.4.4
-  bridge_ports bond0
-  bridge_stp off
-
-
-
- 
-### IF YOU NEED BRIDGE ON IFACE WITHOUT NAT ###
-# ALSO DISABLE DNSMASQ #
-#allow-hotplug enp3s0
-#iface enp3s0 inet manual
- 
-#auto br0
-#iface br0 inet dhcp
-#  bridge_ports enp3s0
-#  bridge_stp off
-###
