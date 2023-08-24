@@ -1,0 +1,32 @@
+---
+- name: Setup bridged networking
+  hosts: all
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Gather facts
+      setup:
+
+    - name: Check if OS is Debian
+      fail:
+        msg: "This playbook can only be run on Debian. Exiting."
+      when: ansible_distribution != 'Debian'
+
+    - name: Backup original network interfaces file
+      copy:
+        src: /etc/network/interfaces
+        dest: /etc/network/interfaces.backup
+        remote_src: yes
+
+    - name: Deploy bridged networking configuration
+      template:
+        src: templates/interfaces.j2
+        dest: /etc/network/interfaces
+      notify:
+        - Restart networking
+
+  handlers:
+    - name: Restart networking
+      service:
+        name: networking
+        state: restarted

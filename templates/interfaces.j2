@@ -1,0 +1,18 @@
+# This is a basic template and might need adjustments based on your specific setup
+source /etc/network/interfaces.d/*
+
+# The loopback network interface
+auto lo
+iface lo inet loopback
+
+# The primary network interface
+auto ens3
+iface ens3 inet manual
+
+# Bridge setup
+auto br0
+iface br0 inet dhcp
+    bridge_ports ens3
+    bridge_stp off
+    bridge_fd 0
+    bridge_maxwait 0

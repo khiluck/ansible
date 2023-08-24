@@ -1,0 +1,201 @@
+---
+- name: Install KVM and libvirt
+  hosts: all
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Gather facts
+      setup:
+
+    - name: Check if OS is Debian
+      fail:
+        msg: "This playbook can only be run on Debian. Exiting."
+      when: ansible_distribution != 'Debian'
+
+    - name: Ensure /root/.ssh/ directory exists
+      file:
+        path: /root/.ssh/
+        state: directory
+        mode: '0700'
+
+    - name: Add SSH key to authorized_keys
+      authorized_key:
+        user: root
+        state: present
+        key: "ssh-rsa AAAAB3NzaC1yc2EAAAABJQAAAQEAyye8tf+BOrGMvM3mmXJs6TFTqwwuLw2fy/QIbIsJT1o6Xc4LFSzzwmA474rWZkncYH0Bh70cF0B7isGaLYNF82kKsVFJiuMYb3616Nyr2g8iqCvSC11icpUE5W6t3ekfez4HNgWLb43s73UA0uzg3AJmeI0RKNeuBzQkWbjkUWvNEpO2VmFClUfbBFstDBbQS/I0TtsELdFWVA0tiydN31v7Ph5xNwPCTuzs1ds6S5gRZIRAoYZgO+gsFBOyc19b12V/4U+bzsQFTedW9VuDLhQcXyW0Ldz3T2J4ZtkrMO511b2n4nbdqAOkK/Fb5mYspUzJoYeca4cY64W0lTKTsQ=="
+
+    - name: Add SSH-VMS key to authorized_keys
+      authorized_key:
+        user: root
+        state: present
+        key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDF3q5zabDUdHBgem9z6JC0iFfzpYs1huTPXOu2X1n5thwuNm2a1Jf1ZTGSkCH01f0x7CkTnAD10o5B/jg7UBFtsHSS0adMQNdUuypvJr7/hmG1wJvyF/5jnQmKqJfYKpiCJpbfwzt07TKGm49BcDYOywV2oxV2GHejyqt9WkMI03CSybCcdMH/FLm3nr7qxx9e59/q6KAn7v2eIzhjOigWt/bxR4ScuAwWOUOYQ2BZyZ1bJzbJnhORfg8bp9GHxS040DtlQ3XY9gcXhuytHMSp6x7wplqzSRzggld17KGEeWZEue4BEWnJvwRoeyXwLbiEe7Tk2PuXfKxpEwpSxK+R5OYfuU5pve7BYhVU30A1Un6wlOUcjHDzPMi9R/qr6qICbPBHtsg3pTbC/qNtcLFUYH5eeObrsPnM9VMRW5JBNFLdHJWyLLIIWTlM+/LkkPIcZrcBd+WPRJBsgzgpSRTCVI5vVXHJwx69BKvASwYMMs4YmMV7VK7am7eJRhzJies="
+
+    - name: Disable Password Authentication in sshd_config
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+
+    - name: Restart sshd service
+      service:
+        name: sshd
+        state: restarted
+
+    - name: Ensure ipv6 is disabled
+      lineinfile:
+        path: /etc/sysctl.conf
+        regexp: "^{{ item.regexp }}"
+        line: "{{ item.line }}"
+      with_items:
+        - { regexp: 'net.ipv6.conf.all.disable_ipv6', line: 'net.ipv6.conf.all.disable_ipv6 = 1' }
+        - { regexp: 'net.ipv6.conf.default.disable_ipv6', line: 'net.ipv6.conf.default.disable_ipv6 = 1' }
+        - { regexp: 'net.ipv6.conf.lo.disable_ipv6', line: 'net.ipv6.conf.lo.disable_ipv6 = 1' }
+
+    - name: Reload sysctl settings
+      command:
+        cmd: sysctl -p
+
+    - name: Perform a dist-upgrade.
+      ansible.builtin.apt:
+        upgrade: dist
+        update_cache: yes
+
+    - name: Install necessary packages
+      apt:
+        name:
+          - screen 
+          - sshfs 
+          - bash-completion 
+          - vim 
+          - sudo 
+          - software-properties-common
+          - nftables
+          - firmware-misc-nonfree 
+          - firmware-linux-nonfree
+        state: present
+
+    - name: Start and enable nftables daemon
+      service:
+        name: nftables
+        state: started
+        enabled: yes
+
+    - name: Add profile settings for vim
+      copy:
+        dest: "~/.vimrc"
+        content: |
+          " use extended function of vim (no compatible with vi)
+          set nocompatible
+         
+          " specify file formats
+          set fileformats=unix,dos
+         
+          " take 50 search histories
+          set history=50
+         
+          " ignore Case
+          set ignorecase
+         
+          " distinct Capital if you mix it in search words
+          set smartcase
+         
+          " highlights matched words
+          " if not, specify [ set nohlsearch ]
+          set hlsearch
+         
+          " use incremental search
+          " if not, specify [ set noincsearch ]
+          set incsearch
+         
+          " show line number
+          " if not, specify [ set nonumber ]
+          "set number
+         
+          " Visualize break ( $ ) or tab ( ^I )
+          "set list
+         
+          " highlights parentheses
+          set showmatch
+         
+          " not insert LF at the end of file
+          set binary noeol
+         
+          " enable auto-indent
+          " if not, specify [ noautoindent ]
+          "set autoindent
+         
+          " show color display
+          " if not, specify [ syntax off ]
+          syntax on
+         
+          " change colors for comments if it's set [ syntax on ]
+          highlight Comment ctermfg=DarkGray
+         
+          " wrap lines
+          " if not, specify [ set nowrap ]
+          set wrap
+         
+          " when you type _bash word it will translate into shebang )
+          abbr _bash #!/bin/bash<CR>
+         
+          " Disable autoindent when paste from buffer
+          set paste
+
+        mode: '0644'
+
+    - name: Add aliases to /etc/profile and ~/.bashrc
+      lineinfile:
+        path: "{{ item.path }}"
+        line: "{{ item.line }}"
+      with_items:
+        - { path: "/etc/profile", line: 'alias vi="vim"' }
+        - { path: "~/.bashrc", line: "alias ls='ls --color=auto -l --time-style long-iso'" }
+        - { path: "~/.bashrc", line: "alias ll='ls --color=auto -la --time-style long-iso'" }
+        - { path: "~/.bashrc", line: "alias grep='grep --color=auto'" }
+        - { path: "~/.bashrc", line: "alias egrep='egrep --color=auto'" }
+        - { path: "~/.bashrc", line: "alias fgrep='fgrep --color=auto'" }
+        - { path: "~/.bashrc", line: "alias ip='ip -c'" }
+        - { path: "~/.bashrc", line: "alias vdir='vdir --color=auto'" }
+        - { path: "~/.bashrc", line: "alias watch='watch --color'" }
+      become: yes
+
+    - name: Add man function to ~/.bashrc
+      blockinfile:
+        path: "~/.bashrc"
+        block: |
+          man() {
+            env \
+              LESS_TERMCAP_mb=$(printf "\e[1;31m") \
+              LESS_TERMCAP_md=$(printf "\e[1;31m") \
+              LESS_TERMCAP_me=$(printf "\e[0m") \
+              LESS_TERMCAP_se=$(printf "\e[0m") \
+              LESS_TERMCAP_so=$(printf "\e[1;44;33m") \
+              LESS_TERMCAP_ue=$(printf "\e[0m") \
+              LESS_TERMCAP_us=$(printf "\e[1;32m") \
+                man "$@"
+          }
+      become: yes
+
+    - name: Customize profile in ~/.bashrc
+      blockinfile:
+        path: "~/.bashrc"
+        block: |
+          clrreset='\e[0m'
+          clrwhite='\e[1;37m'
+          clrgreen='\e[1;32m'
+          clrred='\e[1;31m'
+          clrcyan='\e[1;36m'
+          clrpurple='\e[1;35m'
+          PS1="\[$clrcyan\]\u\[$clrwhite\]@\[$clrpurple\]\w\`if [ \$? = 0 ]; then echo -e '\[$clrgreen\]'; else echo -e '\[$clrred\]'; fi\`\\$ \[$clrreset\]"
+      become: yes
+
+    - name: Check if a reboot is required.
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+        get_md5: no
+      register: reboot_required_file
+
+    - name: Reboot the server (if required).
+      ansible.builtin.reboot:
+      when: reboot_required_file.stat.exists == true
+
