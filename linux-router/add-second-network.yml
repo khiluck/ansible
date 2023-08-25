@@ -1,0 +1,38 @@
+---
+- name: Setup second network card
+  hosts: all
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Gather facts
+      setup:
+
+    - name: Check if OS is Debian
+      fail:
+        msg: "This playbook can only be run on Debian. Exiting."
+      when: ansible_distribution != 'Debian'
+
+    - name: Backup original network interfaces file
+      copy:
+        src: /etc/network/interfaces
+        dest: /etc/network/interfaces.backup
+        remote_src: yes
+
+    - name: Add networking configuration
+      blockinfile:
+        path: "/etc/network/interfaces"
+        block: |
+          # Bridge interface
+          auto enp7s0
+          iface enp7s0 inet static
+            address 192.168.100.1
+            netmask 255.255.255.0
+      become: yes
+      notify:
+        - Restart networking
+
+  handlers:
+    - name: Restart networking
+      service:
+        name: networking
+        state: restarted

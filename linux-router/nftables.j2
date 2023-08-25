@@ -1,0 +1,216 @@
+#!/usr/sbin/nft -f
+#
+#
+# If using this machine as router don't forget to add:
+# echo net.ipv4.ip_forward=1 >> /etc/sysctl.conf
+# and reload:
+# sysctl -p
+#
+#
+ 
+# SET VARIABLES
+define EXTIP = x.x.x.x
+define EXTIF = ens192
+define INTIF = ens224
+define INTIP = 192.168.100.1
+define LAN = 192.168.100.0/24
+# RDP Server
+define RDPSRVIP = 192.168.100.254
+define RDPSRVEXTPORT = 9999
+define WHITELISTRDP = { 192.168.100.0/24 }
+ 
+# Clear all tables, chains, rules
+flush ruleset
+ 
+ 
+# NAT
+table nat {
+    chain prerouting {
+        type nat hook prerouting priority 0
+ 
+	###
+	# PREROUTING CUSTOM RULES
+	###
+ 
+        # ZIMBRA BEHIND NAT Example #
+        # Hairpin NAT 
+        # https://wiki.kptree.net/doku.php?id=linux_router:nftables
+        #
+        #ip daddr 1.1.1.1/32 tcp dport { 7025 } dnat 10.0.100.100
+        #iifname $EXTIF tcp dport { 993,465,25,80,443,7071,8443 } counter dnat to 10.0.100.100
+        #ip saddr $LAN ip daddr $EXTIP tcp dport { 993,25,465,80,443,7071,8443 } counter dnat to 10.0.100.100
+        # #
+ 
+ 
+ 
+	#This redirects the incoming traffic from 1.1.1.1 for TCP ports 9999 to 192.168.1.254 port 3389
+	#iifname $EXTIF ip saddr 1.1.1.1 tcp dport $RDPSRVEXTPORT counter dnat to $RDPSRVIP:3389
+	#
+	iifname $EXTIF tcp dport $RDPSRVEXTPORT counter dnat to $RDPSRVIP:3389
+ 
+ 
+	# Multiple ports dnat
+	#iifname $EXTIF tcp dport { 993,465,25,587,143 } counter dnat to $RDPSRVIP
+ 
+ 
+	# If you need to connect to external ip and port 9999 from localnet
+	#ip saddr $LAN ip daddr $EXTIP tcp dport $RDPSRVEXTPORT counter dnat to $RDPSRVIP:3389
+ 
+ 
+ 
+	###
+	# END CUSTOM RULES
+	###
+    }
+ 
+    chain postrouting {
+        type nat hook postrouting priority 0
+ 
+	###
+	# POSTROUTING CUSTOM RULES
+	###
+ 
+	# NAT itself
+	ip saddr $LAN oifname $EXTIF masquerade
+ 
+        # ZIMBRA BEHIND NAT Example #
+        #ip saddr 10.0.100.0/24 oifname $EXTIF snat 1.1.1.1
+ 
+        #ip saddr 10.0.100.0/24 ip daddr 10.0.100.100/32 tcp dport { 7025 } counter snat 1.1.1.1
+        #ip saddr 10.0.100.0/24 ip daddr 10.0.100.100/32 tcp dport { 7025 } counter snat 10.0.100.100
+        #ip saddr 10.0.100.0/24 ip daddr 10.0.100.100/32 tcp dport { 7025 } counter masquerade
+        ###
+ 
+ 
+	# If you need to connect to external ip and port 9999 from localnet
+	#ip daddr $RDPSRVIP tcp dport 3389 counter snat to $INTIP
+ 
+	###
+	# END CUSTOM RULES
+	###
+    }
+}
+ 
+ 
+# Filter rules
+table inet filter {
+    chain input {
+        type filter hook input priority 0; policy drop
+ 
+        # connection track and accept previous accepted traffic
+        ct state established,related accept
+        # allow all on localhost 
+        iifname lo accept
+        # allow from internal interface
+        iifname $INTIF accept
+        # if the connection is NEW and is not SYN then drop
+        tcp flags != syn ct state new log prefix "FIRST PACKET IS NOT SYN" drop
+        # new and sending FIN the connection? DROP!
+        tcp flags & (fin|syn) == (fin|syn) log prefix "SCANNER1_FIN" drop
+        # i don't think we've met but you're sending a reset?
+        tcp flags & (syn|rst) == (syn|rst) log prefix "SCANNER2_RESET" drop
+        # 0 attack? 
+        tcp flags & (fin|syn|rst|psh|ack|urg) < (fin) log prefix "SCANNER3_0ATACK" drop 
+        # xmas attack. lights up everything
+        tcp flags & (fin|syn|rst|psh|ack|urg) == (fin|psh|urg) log prefix "SCANNER4_XMAS" drop
+        # if the ctstate is invalid 
+        ct state invalid log flags all prefix "Invalid conntrack state: " counter drop
+ 
+ 
+	# accepting ping (icmp-echo-request) for diagnostic purposes.
+        icmp type echo-request limit rate 5/second accept	
+ 
+        ip6 nexthdr ipv6-icmp icmpv6 type echo-request counter accept
+        ip6 nexthdr ipv6-icmp ip6 hoplimit 1 icmpv6 type { nd-neighbor-advert, nd-neighbor-solicit, nd-router-advert} accept
+        ip6 nexthdr ipv6-icmp ip6 hoplimit 255 icmpv6 type { nd-neighbor-advert, nd-neighbor-solicit, nd-router-advert} accept
+ 
+ 
+	###
+	# INPUT CUSTOM RULES
+	###	
+	# open ssh
+	tcp dport ssh ct state new accept
+ 
+	# wireguard
+	#iifname $EXTIF udp dport 55820 counter accept
+ 
+        # open ssh, http and https and give them the new state 
+	#tcp dport { ssh, http, https } ct state new accept
+ 
+	# allow SSH connections from some well-known internet host
+	#ip saddr 1.1.1.1 tcp dport ssh accept
+ 
+	###
+	# END CUSTOM RULES
+	###
+ 
+        # when you are troubleshooting uncomment the next line.
+	#log prefix "Incoming packet dropped: "
+    }
+ 
+    chain output {
+        type filter hook output priority 0; policy accept
+ 
+        # connection track and accept previous accepted traffic
+        ct state established,related accept
+        # allow all on localhost
+        oifname lo accept
+        # limit outgoing icmp type 8 traffic
+        ip protocol icmp icmp type echo-request limit rate 1/second log accept
+ 
+	###
+	# OUTPUT CUSTOM RULES
+	###
+ 
+        # allow web requests
+	#tcp dport { http, https } ct state new accept
+ 
+	###
+	# END CUSTOM RULES
+	###
+    }
+ 
+    chain forward {
+	type filter hook forward priority 0; policy drop
+ 
+        # Allow traffic from established and related packets, drop invalid
+        ct state vmap { established : accept, related : accept, invalid : drop }
+ 
+	###
+	# FORWARD CUSTOM RULES
+	###
+ 
+	# Drop SMTP(S)
+	#	tcp dport { smtp, smtps, 587, http, https } drop
+ 
+        # connections from the internal net to the internet or to other
+        # internal nets are allowed
+	iifname $INTIF accept
+ 
+ 
+	### RDP ###
+ 
+	# Whitelist RDP IPs and networks
+	iifname $EXTIF oifname $INTIF ip saddr $WHITELISTRDP ip daddr $RDPSRVIP tcp dport 3389 counter accept
+	# limit 5 connection per hour, 31 seconds timeout and you can try again. log RDP connection if limit reach.
+	iifname $EXTIF oifname $INTIF ip daddr $RDPSRVIP tcp dport 3389 ct state new meter RDP { ip saddr timeout 31s limit rate 1/hour burst 5 packets } counter accept
+	log prefix "!!!- RDP Bruteforce -!!! "
+	# Just pass everyone without limitation 
+	#iifname $EXTIF oifname $INTIF ip daddr $RDPSRVIP tcp dport 3389 counter accept
+	###
+ 
+        # ZIMBRA BEHIND NAT Example #
+        #iifname $EXTIF oifname $INTIF ip daddr 10.0.100.100 tcp dport { 993,25,465,7071,80,443,8443 } ct state new meter ROCKY { ip saddr timeout 31s limit rate 1/minute burst 30 packets } counter accept
+        ###
+ 
+ 
+	###
+	# END CUSTOM RULES
+	###
+ 
+	#log prefix "Forwarding packet dropped: "
+    }
+ 
+ 
+ 
+}
