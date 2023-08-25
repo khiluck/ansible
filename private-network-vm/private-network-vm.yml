@@ -1,6 +1,6 @@
 ---
-- name: Set up private virtual network
-  hosts: debian_host
+- name: Set up private virtual isolated network
+  hosts: all
   gather_facts: no
   become: yes
   tasks:
@@ -13,8 +13,16 @@
         msg: "This playbook can only be run on Debian. Exiting."
       when: ansible_distribution != 'Debian'
 
+    - name: Ensure python3-lxml package is installed
+      apt:
+        name: python3-lxml
+        state: present
+      when: ansible_os_family == "Debian"
+
     - name: Create private isolated virtual network
       virt_net:
+        command: define
         name: private_network
-        mode: isolated
+        xml: "{{ lookup('file', 'isolated_network.xml') }}"
         state: present
+

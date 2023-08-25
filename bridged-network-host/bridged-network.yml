@@ -12,6 +12,12 @@
         msg: "This playbook can only be run on Debian. Exiting."
       when: ansible_distribution != 'Debian'
 
+    - name: Ensure ifenslave package is installed
+      apt:
+        name: ifenslave
+        state: present
+      when: ansible_os_family == "Debian"
+
     - name: Backup original network interfaces file
       copy:
         src: /etc/network/interfaces
@@ -20,7 +26,7 @@
 
     - name: Deploy bridged networking configuration
       template:
-        src: templates/interfaces-host.j2
+        src: interfaces-host.j2
         dest: /etc/network/interfaces
       notify:
         - Restart networking
