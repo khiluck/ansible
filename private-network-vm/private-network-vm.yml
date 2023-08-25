@@ -26,3 +26,13 @@
         xml: "{{ lookup('file', 'isolated_network.xml') }}"
         state: present
 
+    - name: Activate (start) private isolated virtual network
+      virt_net:
+        command: start
+        name: private_network
+        state: active
+
+    - name: Ensure private_network is set to autostart
+      command:
+        cmd: virsh net-autostart private_network
+

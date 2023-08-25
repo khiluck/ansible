@@ -1,0 +1,42 @@
+---
+- name: Create Linux Router VM
+  hosts: all
+  gather_facts: no
+  become: yes
+  tasks:
+    - name: Gather facts
+      setup:
+
+    - name: Check if OS is Debian
+      fail:
+        msg: "This playbook can only be run on Debian. Exiting."
+      when: ansible_distribution != 'Debian'
+
+    - name: Download Debian netboot iso image
+      get_url:
+        url: https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-12.1.0-amd64-netinst.iso
+        dest: /vmfs/ISO/debian-netinstall.iso
+        mode: '0755'
+
+    - name: Define and start VM using virt-install
+      command:
+        cmd: >
+          virt-install 
+          --name linux_router_vm 
+          --ram 2048 
+          --vcpus 2 
+          --os-variant debian11 
+          --location /vmfs/ISO/debian-netinstall.iso 
+          --extra-args "auto=true priority=critical url=https://root.od.ua/di.cfg" 
+          --disk path=/vmfs/linux_router_vm.qcow2,size=20,format=qcow2 
+          --network bridge=br0 
+          --network network=private_network 
+          --graphics vnc,listen=0.0.0.0,port=5900
+      args:
+        creates: /vmfs/linux_router_vm.qcow2
+
+    - name: Ensure VM is running
+      virt:
+        name: linux_router_vm
+        state: running
+        uri: qemu:///system
